@@ -1,0 +1,5 @@
+local.devops-ws.tomballinger.net
+local.devops-web.tomballinger.net
+
+[webservers]
+local.devops-web.tomballinger.net

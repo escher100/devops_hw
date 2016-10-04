@@ -1,0 +1,31 @@
+# Notes:
+# I have not used Ansible AWS modules, so I instead of buring time learning them, I used the following AWS CLI
+# commands to:
+
+# create a CentOS AMI from a VMware VM image I already had in S3 
+aws ec2 import-image --license-type BYOL --cli-input-json "{  \"Description\": \"devops_hw VM Import\", \"Platform\": \"Linux\", \"DiskContainers\": [ { \"Description\": \"Get Image from S3\", \"UserBucket\": { \"S3Bucket\": \"zm-vmimports\", \"S3Key\" : \"ZM-AMI-template-1a.ova\" } } ] }"
+
+# spin up 2 instances from the new AMI
+#  one as a local work station for Ansible, AWS CLI & Git
+#  one for the web server
+#  the security group already had ssh & ping from my IP
+aws ec2 run-instances --image-id ami-98561b8f --count 2 --instance-type t2.micro --security-group-ids sg-e3004999 --key-name zm_keypair1  --subnet-id subnet-ba4cb097
+
+# name the new instances
+aws ec2 create-tags --resources i-0bcebe6f5ba260296 --tags Key=Name,Value=devops-web
+aws ec2 create-tags --resources i-065b3b3a99f14d7b9 --tags Key=Name,Value=devops-ws
+
+# assign IP addresses
+aws ec2 assign-private-ip-addresses --network-interface-id eni-03e19111 --private-ip-addresses 192.168.1.100
+aws ec2 assign-private-ip-addresses --network-interface-id eni-8f96e59d --private-ip-addresses 192.168.1.200
+
+# Associate Elastic IPs from my existing allocations.  I added these to my DNS elsewhere
+aws ec2 associate-address --allocation-id eipalloc-a6c3b999 --instance-id i-0bcebe6f5ba260296
+aws ec2 associate-address --allocation-id eipalloc-1d93e322 --instance-id i-065b3b3a99f14d7b9
+
+# Secure the web server, adding ssh and pings from workstation instance at 192.168.1.100/32 
+# and http/s from anywhere 
+aws ec2 modify-instance-attribute --instance-id i-0bcebe6f5ba260296 --groups sg-fae2b980 sg-e3004999 sg-37054c4d
+
+# The AMI already had my username, so at this poing I simply needed to install Ansible, Git and AWS CLI
+# on the workstation

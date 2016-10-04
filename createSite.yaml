@@ -1,0 +1,51 @@
+---
+- name: Remove webserver
+  hosts: webservers
+  remote_user: tom.ballinger
+  become: yes
+  become_method: sudo
+  tasks:
+  
+    - name: install apache
+      yum: name={{ item }} state=installed
+      with_items:
+        - httpd
+        - mod_ssl
+        
+    - name: copy apache files in
+      copy: src={{ item.src }}  dest={{ item.dest }} 
+      with_items:
+        - { src: 'files/index.html', dest: '/var/www/html/index.html' }
+        - { src: 'files/site.crt', dest: '/etc/pki/tls/certs/localhost.crt' }
+        - { src: 'files/site.key', dest: '/etc/pki/tls/private/localhost.key' }
+
+    - name: configure apache
+      lineinfile: dest={{ item.dest }} regexp={{ item.regex }} insertafter={{ item.insertafter }} line={{ item.line }}
+      with_items:
+        - {  dest: '/etc/httpd/conf/httpd.conf', regex: '^ServerName', insertafter: '^#ServerName', line: 'ServerName www.tomballinger.net:80' }
+        - {  dest: '/etc/httpd/conf/httpd.conf', regex: '^Listen', insertafter: '^#Listen', line: 'Listen 192.168.1.200:80' }
+        - {  dest: '/etc/httpd/conf.d/ssl.conf', regex: '^ServerName', insertafter: '^#ServerName', line: 'ServerName www.tomballinger.net:443' }
+        - {  dest: '/etc/httpd/conf.d/ssl.conf', regex: '^Listen', insertafter: '^#Listen', line: 'Listen 192.168.1.200:443' }
+  
+    - name: apache rewrite mod load
+      lineinfile: dest=/etc/httpd/conf/httpd.conf line="LoadModule rewrite_module modules/mod_rewrite.so"
+
+    - name: apache rewrite rule
+      blockinfile:
+        dest: /etc/httpd/conf/httpd.conf
+        block: |
+          RewriteEngine on
+          RewriteCond %{HTTPS} off
+          RewriteRule ^(.*)$ https://%{HTTP_HOST}/$1 [R,L]
+
+    - name: Iptables 
+      iptables: chain=INPUT protocol=tcp match=tcp destination_port={{ item.port }}  jump=ACCEPT state=present
+      with_items:
+        - { port: '80' }
+        - { port: '443' }
+
+    - name: Save iptables
+      command: '/sbin/service iptables save'
+      
+    - name: restart httpd services
+      service: name=httpd state=restarted

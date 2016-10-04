@@ -1,0 +1,31 @@
+---
+- name: Remove all previous Apache install/configs
+  hosts: webservers
+  remote_user: tom.ballinger
+  become: yes
+  become_method: sudo
+  tasks:
+    
+    - name: Iptables 
+      iptables: chain=INPUT protocol=tcp match=tcp destination_port={{ item.port }}  jump=ACCEPT state=absent
+      with_items:
+        - { port: '80' }
+        - { port: '443' }
+
+    - name: Save iptables
+      command: '/sbin/service iptables save'
+
+    - name: install apache
+      yum: name={{ item }} state=absent
+      with_items:
+        - httpd
+        - mod_ssl
+
+    - name: Delete files
+      file: path={{ item }} state=absent
+      with_items:
+        - /var/www
+        - /etc/httpd
+        - /etc/pki/tls/certs/localhost.crt
+        - /etc/pki/tls/private/localhost.key
+
